@@ -1,0 +1,31 @@
+{
+    "name": "ProjectionFX",
+    "rootNamespace": "ProjectionFX",
+    "references": [
+        "Unity.Mathematics",
+        "Unity.InferenceEngine",
+        "Unity.RenderPipelines.Universal.Runtime",
+        "Unity.RenderPipelines.Core.Runtime",
+        "GaussianSplatting"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": true,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [
+        {
+            "name": "com.unity.ai.inference",
+            "expression": "",
+            "define": "SENTIS_PRESENT"
+        },
+        {
+            "name": "org.nesnausk.gaussian-splatting",
+            "expression": "",
+            "define": "GAUSSIAN_SPLAT_PRESENT"
+        }
+    ],
+    "noEngineReferences": false
+}

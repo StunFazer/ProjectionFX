@@ -1,0 +1,134 @@
+// SPDX-License-Identifier: MIT
+// Compute shader for real-time interactive deformation, dispersion, and dissolve of Gaussian Splats.
+#pragma kernel CSDeformSplats
+#pragma kernel CSResetSplats
+
+#define GROUP_SIZE 256
+
+ByteAddressBuffer _BasePosBuffer;       // Original splat positions (float3)
+RWByteAddressBuffer _DeformedPosBuffer; // Current active splat positions (float3)
+RWByteAddressBuffer _GeometryBuffer;    // Quat, scale, and opacity
+
+uint _SplatCount;
+float _DeltaTime;
+float _Time;
+
+// Hand / interaction points
+#define MAX_INTERACTION_POINTS 8
+float4 _InteractionPoints[MAX_INTERACTION_POINTS]; // xyz = pos, w = strength/radius
+uint _InteractionPointCount;
+
+float _DisplaceRadius;
+float _DisplaceStrength;
+float _TurbulenceStrength;
+float _DissolveRadius;
+float _RecoverySpeed;
+
+// Fast simplex/curl noise approximation
+float3 Hash33(float3 p)
+{
+    float3 q = float3(
+        dot(p, float3(127.1, 311.7, 74.7)),
+        dot(p, float3(269.5, 183.3, 246.1)),
+        dot(p, float3(113.5, 271.9, 124.6))
+    );
+    return frac(sin(q) * 43758.5453123) * 2.0 - 1.0;
+}
+
+float3 CurlNoise(float3 p)
+{
+    float eps = 0.05;
+    float3 dx = float3(eps, 0.0, 0.0);
+    float3 dy = float3(0.0, eps, 0.0);
+    float3 dz = float3(0.0, 0.0, eps);
+
+    float3 p_x0 = Hash33(p - dx);
+    float3 p_x1 = Hash33(p + dx);
+    float3 p_y0 = Hash33(p - dy);
+    float3 p_y1 = Hash33(p + dy);
+    float3 p_z0 = Hash33(p - dz);
+    float3 p_z1 = Hash33(p + dz);
+
+    float x = p_y1.z - p_y0.z - p_z1.y + p_z0.y;
+    float y = p_z1.x - p_z0.x - p_x1.z + p_x0.z;
+    float z = p_x1.y - p_x0.y - p_y1.x + p_y0.x;
+
+    return normalize(float3(x, y, z)) / (2.0 * eps);
+}
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void CSDeformSplats(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _SplatCount)
+        return;
+
+    uint addr = idx * 12;
+    float3 basePos = asfloat(_BasePosBuffer.Load3(addr));
+    float3 curPos = asfloat(_DeformedPosBuffer.Load3(addr));
+
+    float3 totalForce = float3(0, 0, 0);
+    float minHandDist = 1e6;
+
+    for (uint i = 0; i < _InteractionPointCount; i++)
+    {
+        float3 handPos = _InteractionPoints[i].xyz;
+        float handRadius = _InteractionPoints[i].w * _DisplaceRadius;
+
+        float3 diff = curPos - handPos;
+        float dist = length(diff);
+        minHandDist = min(minHandDist, dist);
+
+        if (dist < handRadius && dist > 1e-4)
+        {
+            float factor = 1.0 - (dist / handRadius);
+            float3 dir = diff / dist;
+
+            // Outward push + curl turbulence
+            float3 curl = CurlNoise(curPos * 2.0 + float3(0, _Time * 0.5, 0));
+            float3 force = (dir * _DisplaceStrength + curl * _TurbulenceStrength) * (factor * factor);
+            totalForce += force;
+        }
+    }
+
+    // Apply push velocity
+    curPos += totalForce * _DeltaTime;
+
+    // Elastic recovery back to original base position
+    float spring = 1.0 - exp(-_RecoverySpeed * _DeltaTime);
+    curPos = lerp(curPos, basePos, spring);
+
+    _DeformedPosBuffer.Store3(addr, asuint(curPos));
+
+    // Optional: Dissolve / scale suppression near interaction point
+    if (_DissolveRadius > 0.001)
+    {
+        uint3 geom = _GeometryBuffer.Load3(addr);
+        uint scaleOpacity = geom.z;
+
+        // Extract half precision opacity (high 16 bits of geom.z)
+        float opacity = f16tof32(scaleOpacity >> 16);
+
+        if (minHandDist < _DissolveRadius)
+        {
+            float dissolveFactor = clamp(minHandDist / _DissolveRadius, 0.0, 1.0);
+            opacity *= dissolveFactor;
+        }
+
+        // Repack modified opacity
+        geom.z = (f32tof16(opacity) << 16) | (scaleOpacity & 0xFFFF);
+        _GeometryBuffer.Store3(addr, geom);
+    }
+}
+
+[numthreads(GROUP_SIZE, 1, 1)]
+void CSResetSplats(uint3 id : SV_DispatchThreadID)
+{
+    uint idx = id.x;
+    if (idx >= _SplatCount)
+        return;
+
+    uint addr = idx * 12;
+    uint3 baseData = _BasePosBuffer.Load3(addr);
+    _DeformedPosBuffer.Store3(addr, baseData);
+}

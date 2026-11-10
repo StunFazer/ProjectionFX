@@ -1,0 +1,28 @@
+#pragma kernel MaskToTexture
+
+StructuredBuffer<float> MaskTensor;
+RWTexture2D<float4> OutputMask;
+
+uint MaskWidth;
+uint MaskHeight;
+float Threshold;
+float Smoothness;
+
+[numthreads(8, 8, 1)]
+void MaskToTexture(uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= MaskWidth || id.y >= MaskHeight)
+        return;
+
+    uint idx = id.y * MaskWidth + id.x;
+    float logit = MaskTensor[idx];
+
+    // Sigmoid
+    float prob = 1.0 / (1.0 + exp(-logit));
+
+    // Smoothstep thresholding for clean anti-aliased edge
+    float alpha = smoothstep(Threshold - Smoothness, Threshold + Smoothness, prob);
+
+    // Write to OutputMask: (alpha, alpha, alpha, alpha)
+    OutputMask[uint2(id.x, MaskHeight - 1 - id.y)] = float4(alpha, alpha, alpha, alpha);
+}
