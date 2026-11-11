@@ -1,0 +1,45 @@
+name: Build Standalone Windows (.exe)
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag (e.g. v1.0.0)'
+        required: false
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build StandaloneWindows64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Build Windows Standalone (.exe) via GameCI
+        uses: game-ci/unity-builder@v4
+        env:
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+        with:
+          targetPlatform: StandaloneWindows64
+          buildMethod: ProjectionFX.Editor.BuildScript.BuildWindows
+
+      - name: Compress Build Output
+        run: |
+          cd build/Windows
+          zip -r ../../ProjectionFX-Windows-x64.zip .
+          cd ../..
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag }}
+          name: Release ${{ github.event.inputs.release_tag }}
+          files: ProjectionFX-Windows-x64.zip
+          draft: false
+          prerelease: false
