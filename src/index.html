@@ -54,6 +54,7 @@
         <nav class="tabs-nav">
           <button class="tab-btn active" data-tab="tab-effects">Effects</button>
           <button class="tab-btn" data-tab="tab-vision">Vision</button>
+          <button class="tab-btn" data-tab="tab-performer">Performer</button>
           <button class="tab-btn" data-tab="tab-calib">Calibration</button>
           <button class="tab-btn" data-tab="tab-keystone">Keystone</button>
         </nav>
@@ -61,13 +62,19 @@
         <!-- Tab 1: Effects & Splats -->
         <div id="tab-effects" class="tab-pane active">
           <div class="card">
-            <span class="card-title">Splat Cloud</span>
+            <span class="card-title">Splat Cloud Preset</span>
             <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Preset</span>
-                <span id="val-preset" class="control-val">Sculpture Torus</span>
+                <span class="control-label">Select 3DGS Preset</span>
               </div>
-              <button id="btn-reset-demo" class="btn">Reload Demo Cloud (60k)</button>
+              <select id="preset-select" class="control-select">
+                <option value="sculpture" selected>🌀 Moebius Sculpture Torus (60k)</option>
+                <option value="performer">🕺 Dynamic Performer Rig (60k)</option>
+                <option value="galaxy">🌌 Spiral Galaxy Nebula (60k)</option>
+                <option value="vortex">🌪️ Hydrodynamic Vortex (60k)</option>
+                <option value="crystal">💎 Octahedral Crystal Lattice (60k)</option>
+              </select>
+              <button id="btn-reset-demo" class="btn" style="margin-top: 4px;">Reload Selected Preset</button>
             </div>
           </div>
 
@@ -127,7 +134,15 @@
               <video id="webcam-feed" playsinline></video>
               <canvas id="landmark-canvas"></canvas>
             </div>
-            <button id="btn-toggle-camera" class="btn">Start Webcam (1080p60)</button>
+            <div class="control-row" style="margin-top: 4px;">
+              <div class="control-label-row">
+                <span class="control-label">Camera Source</span>
+              </div>
+              <select id="camera-select" class="control-select">
+                <option value="">Detecting cameras...</option>
+              </select>
+            </div>
+            <button id="btn-toggle-camera" class="btn btn-primary" style="margin-top: 6px;">Start Webcam (1080p60)</button>
           </div>
 
           <div class="card">
@@ -142,6 +157,56 @@
               <div class="control-label-row">
                 <span class="control-label">Right Hand</span>
                 <span id="val-right-hand" class="control-val">Searching...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Dynamic Performer -->
+        <div id="tab-performer" class="tab-pane">
+          <div class="card">
+            <span class="card-title">Dynamic Performer Mode</span>
+            <p style="color: var(--text-muted); font-size: 11px;">
+              Binds procedural Gaussian splats and volumetric auras directly to the performer's body skeleton and silhouette.
+            </p>
+            <button id="btn-activate-performer-preset" class="btn btn-primary">Load Performer Avatar Splats</button>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Performer Silhouette & Stencil</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Silhouette Mask Stencil</span>
+                <span id="val-mask-state" class="control-val">Off</span>
+              </div>
+              <button id="btn-toggle-mask" class="btn">Toggle Stencil Mask</button>
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Aura Halo Expansion</span>
+                <span id="val-performer-aura" class="control-val">1.25m</span>
+              </div>
+              <input type="range" id="slider-performer-aura" min="0.5" max="3.0" step="0.05" value="1.25">
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Splat Motion Binding</span>
+                <span id="val-performer-bind" class="control-val">0.85</span>
+              </div>
+              <input type="range" id="slider-performer-bind" min="0.0" max="1.0" step="0.05" value="0.85">
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Performer Telemetry</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Performer Stencil Res</span>
+                <span class="control-val">640 &times; 360</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Rig Splats</span>
+                <span class="control-val">60,000 Particles</span>
               </div>
             </div>
           </div>

@@ -36,23 +36,54 @@ export class TrackingManager {
 
     this.isCameraRunning = false;
     this.useSynthetic = false; // Fallback when no physical camera is present
+    this.currentStream = null;
+    this.selectedDeviceId = null;
+  }
+
+  async getAvailableCameras() {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        return [];
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return devices
+        .filter(d => d.kind === 'videoinput')
+        .map((d, index) => ({
+          deviceId: d.deviceId,
+          label: d.label || `Camera ${index + 1}`
+        }));
+    } catch (e) {
+      console.warn('Failed to enumerate cameras:', e);
+      return [];
+    }
   }
 
   async startCamera(videoElement = null, preferredDeviceId = null) {
     const targetVideo = videoElement || this.video;
-    const constraints = {
-      video: {
-        width: { ideal: 1280 },
-        height: { ideal: 720 },
-        frameRate: { ideal: 60 }
-      }
-    };
+
+    // Stop existing stream tracks to release previous camera hardware
+    if (this.currentStream) {
+      this.currentStream.getTracks().forEach(track => track.stop());
+      this.currentStream = null;
+    }
+
     if (preferredDeviceId) {
-      constraints.video.deviceId = { exact: preferredDeviceId };
+      this.selectedDeviceId = preferredDeviceId;
+    }
+
+    const videoConstraints = {
+      width: { ideal: 1280 },
+      height: { ideal: 720 },
+      frameRate: { ideal: 60 }
+    };
+
+    if (this.selectedDeviceId) {
+      videoConstraints.deviceId = { exact: this.selectedDeviceId };
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+      this.currentStream = stream;
       targetVideo.srcObject = stream;
       await new Promise((resolve) => {
         targetVideo.onloadedmetadata = () => {

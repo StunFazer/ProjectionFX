@@ -39,7 +39,29 @@ export class GaussianSplatRenderer {
   }
 
   loadDemo(count = 60000) {
-    const data = DefaultDemoSplats.generateSculpture(count);
+    this.loadPreset('sculpture', count);
+  }
+
+  loadPreset(presetName = 'sculpture', count = 60000) {
+    let data;
+    switch (presetName.toLowerCase()) {
+      case 'performer':
+        data = DefaultDemoSplats.generatePerformer(count);
+        break;
+      case 'galaxy':
+        data = DefaultDemoSplats.generateGalaxy(count);
+        break;
+      case 'vortex':
+        data = DefaultDemoSplats.generateVortex(count);
+        break;
+      case 'crystal':
+        data = DefaultDemoSplats.generateCrystal(count);
+        break;
+      case 'sculpture':
+      default:
+        data = DefaultDemoSplats.generateSculpture(count);
+        break;
+    }
     this.initGeometry(data);
   }
 

@@ -62,6 +62,8 @@ const sync = new ChannelSync(isProjectorMode, (msg) => {
   } else if (msg.type === 'KEYSTONE') {
     keystone.corners = msg.payload;
     canvas.style.transform = keystone.getCssMatrix3D();
+  } else if (msg.type === 'PRESET') {
+    splatRenderer.loadPreset(msg.payload.preset, 60000);
   }
 });
 
@@ -98,14 +100,172 @@ function setupUI() {
   // Tabs Navigation
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabPanes = document.querySelectorAll('.tab-pane');
+  function switchTab(tabId) {
+    tabBtns.forEach(b => {
+      if (b.dataset.tab === tabId) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
+    tabPanes.forEach(p => {
+      if (p.id === tabId) {
+        p.classList.add('active');
+      } else {
+        p.classList.remove('active');
+      }
+    });
+  }
+
   tabBtns.forEach(btn => {
     btn.addEventListener('click', () => {
-      tabBtns.forEach(b => b.classList.remove('active'));
-      tabPanes.forEach(p => p.classList.remove('active'));
-      btn.classList.add('active');
-      const target = document.getElementById(btn.dataset.tab);
-      if (target) target.classList.add('active');
+      switchTab(btn.dataset.tab);
     });
+  });
+
+  // Mode Selector (Static 3D Object vs. Dynamic Performer)
+  const btnModeObject = document.getElementById('btn-mode-object');
+  const btnModePerformer = document.getElementById('btn-mode-performer');
+  const statMode = document.getElementById('stat-mode');
+  const presetSelect = document.getElementById('preset-select');
+
+  function setMode(mode) {
+    if (mode === 'performer') {
+      btnModeObject?.classList.remove('active');
+      btnModePerformer?.classList.add('active');
+      if (statMode) statMode.textContent = 'Mode: Dynamic Performer';
+      switchTab('tab-performer');
+      if (presetSelect) presetSelect.value = 'performer';
+      splatRenderer.loadPreset('performer', 60000);
+      document.getElementById('stat-splats').textContent = `Splats: ${splatRenderer.splatData.count.toLocaleString()}`;
+      sync.send('PRESET', { preset: 'performer' });
+    } else {
+      btnModePerformer?.classList.remove('active');
+      btnModeObject?.classList.add('active');
+      if (statMode) statMode.textContent = 'Mode: Static 3D Object';
+      switchTab('tab-effects');
+      if (presetSelect) presetSelect.value = 'sculpture';
+      splatRenderer.loadPreset('sculpture', 60000);
+      document.getElementById('stat-splats').textContent = `Splats: ${splatRenderer.splatData.count.toLocaleString()}`;
+      sync.send('PRESET', { preset: 'sculpture' });
+    }
+  }
+
+  btnModeObject?.addEventListener('click', () => setMode('object'));
+  btnModePerformer?.addEventListener('click', () => setMode('performer'));
+
+  // Preset Selector Dropdown
+  presetSelect?.addEventListener('change', (e) => {
+    const preset = e.target.value;
+    splatRenderer.loadPreset(preset, 60000);
+    document.getElementById('stat-splats').textContent = `Splats: ${splatRenderer.splatData.count.toLocaleString()}`;
+    if (preset === 'performer') {
+      btnModeObject?.classList.remove('active');
+      btnModePerformer?.classList.add('active');
+      if (statMode) statMode.textContent = 'Mode: Dynamic Performer';
+    }
+    sync.send('PRESET', { preset });
+  });
+
+  // Reload Preset / Demo Reset
+  document.getElementById('btn-reset-demo')?.addEventListener('click', () => {
+    const preset = presetSelect ? presetSelect.value : 'sculpture';
+    splatRenderer.loadPreset(preset, 60000);
+    document.getElementById('stat-splats').textContent = `Splats: ${splatRenderer.splatData.count.toLocaleString()}`;
+  });
+
+  // Dynamic Performer tab controls
+  document.getElementById('btn-activate-performer-preset')?.addEventListener('click', () => {
+    setMode('performer');
+  });
+
+  let maskEnabled = false;
+  const btnToggleMask = document.getElementById('btn-toggle-mask');
+  const valMaskState = document.getElementById('val-mask-state');
+  btnToggleMask?.addEventListener('click', () => {
+    maskEnabled = !maskEnabled;
+    if (valMaskState) valMaskState.textContent = maskEnabled ? 'Enabled' : 'Off';
+    valMaskState.style.color = maskEnabled ? 'var(--accent-emerald)' : 'var(--accent-cyan)';
+    splatRenderer.uniforms.uUsePerformerMask.value = maskEnabled ? 1.0 : 0.0;
+  });
+
+  const sliderPerformerAura = document.getElementById('slider-performer-aura');
+  const valPerformerAura = document.getElementById('val-performer-aura');
+  sliderPerformerAura?.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    if (valPerformerAura) valPerformerAura.textContent = `${val.toFixed(2)}m`;
+    splatRenderer.setDissolve(val);
+  });
+
+  const sliderPerformerBind = document.getElementById('slider-performer-bind');
+  const valPerformerBind = document.getElementById('val-performer-bind');
+  sliderPerformerBind?.addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    if (valPerformerBind) valPerformerBind.textContent = val.toFixed(2);
+    splatRenderer.uniforms.uHandPushStrength.value = val * 0.5;
+  });
+
+  // Camera Selection & MediaStream
+  const cameraSelect = document.getElementById('camera-select');
+  const btnCamera = document.getElementById('btn-toggle-camera');
+  const videoElem = document.getElementById('webcam-feed');
+
+  async function populateCameraDevices() {
+    if (!cameraSelect) return;
+    const devices = await tracker.getAvailableCameras();
+    cameraSelect.innerHTML = '';
+
+    if (devices.length === 0) {
+      const optDefault = document.createElement('option');
+      optDefault.value = '';
+      optDefault.textContent = 'Default Camera (Auto-Detect)';
+      cameraSelect.appendChild(optDefault);
+    } else {
+      devices.forEach(dev => {
+        const opt = document.createElement('option');
+        opt.value = dev.deviceId;
+        opt.textContent = dev.label || `Camera ${cameraSelect.children.length + 1}`;
+        cameraSelect.appendChild(opt);
+      });
+    }
+
+    const optSynthetic = document.createElement('option');
+    optSynthetic.value = 'synthetic';
+    optSynthetic.textContent = 'Synthetic Motion Generator (No Hardware)';
+    cameraSelect.appendChild(optSynthetic);
+  }
+
+  populateCameraDevices();
+
+  cameraSelect?.addEventListener('change', async (e) => {
+    const selectedId = e.target.value;
+    if (selectedId === 'synthetic') {
+      if (tracker.currentStream) {
+        tracker.currentStream.getTracks().forEach(t => t.stop());
+        tracker.currentStream = null;
+      }
+      tracker.useSynthetic = true;
+      tracker.isCameraRunning = true;
+      if (btnCamera) btnCamera.textContent = 'Synthetic Tracking Active';
+      return;
+    }
+
+    if (btnCamera) btnCamera.textContent = 'Connecting Camera...';
+    await tracker.initMediaPipe();
+    const ok = await tracker.startCamera(videoElem, selectedId || null);
+    if (btnCamera) {
+      btnCamera.textContent = ok ? 'Webcam Running (1080p60)' : 'Using Synthetic Tracking';
+    }
+  });
+
+  btnCamera?.addEventListener('click', async () => {
+    btnCamera.textContent = 'Connecting Camera...';
+    await tracker.initMediaPipe();
+    const selectedId = cameraSelect ? cameraSelect.value : null;
+    const ok = await tracker.startCamera(videoElem, selectedId && selectedId !== 'synthetic' ? selectedId : null);
+    btnCamera.textContent = ok ? 'Webcam Running (1080p60)' : 'Using Synthetic Tracking';
+    await populateCameraDevices();
+    if (selectedId && cameraSelect) cameraSelect.value = selectedId;
   });
 
   // Sliders
@@ -156,22 +316,6 @@ function setupUI() {
       splatRenderer.loadPly(buffer);
       document.getElementById('stat-splats').textContent = `Splats: ${splatRenderer.splatData.count.toLocaleString()}`;
     }
-  });
-
-  // Demo Reset
-  document.getElementById('btn-reset-demo')?.addEventListener('click', () => {
-    splatRenderer.loadDemo();
-    document.getElementById('stat-splats').textContent = 'Splats: 60,000';
-  });
-
-  // Webcam Start Button
-  const btnCamera = document.getElementById('btn-toggle-camera');
-  const videoElem = document.getElementById('webcam-feed');
-  btnCamera?.addEventListener('click', async () => {
-    btnCamera.textContent = 'Connecting Camera...';
-    await tracker.initMediaPipe();
-    const ok = await tracker.startCamera(videoElem);
-    btnCamera.textContent = ok ? 'Webcam Running (1080p60)' : 'Using Synthetic Tracking';
   });
 
   // Projector Window Launcher
