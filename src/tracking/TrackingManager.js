@@ -60,43 +60,94 @@ export class TrackingManager {
 
   async startCamera(videoElement = null, preferredDeviceId = null) {
     const targetVideo = videoElement || this.video;
-
-    // Stop existing stream tracks to release previous camera hardware
-    if (this.currentStream) {
-      this.currentStream.getTracks().forEach(track => track.stop());
-      this.currentStream = null;
-    }
+    this.lastError = null;
 
     if (preferredDeviceId) {
       this.selectedDeviceId = preferredDeviceId;
     }
 
-    const videoConstraints = {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 60 }
-    };
+    if (this.selectedDeviceId === 'synthetic') {
+      if (this.currentStream) {
+        try { this.currentStream.getTracks().forEach(track => track.stop()); } catch (_) {}
+        this.currentStream = null;
+      }
+      this.useSynthetic = true;
+      this.isCameraRunning = true;
+      return true;
+    }
 
-    if (this.selectedDeviceId) {
-      videoConstraints.deviceId = { exact: this.selectedDeviceId };
+    // Stop existing stream tracks to release previous camera hardware
+    if (this.currentStream) {
+      try {
+        this.currentStream.getTracks().forEach(track => track.stop());
+      } catch (_) {}
+      this.currentStream = null;
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+      let stream = null;
+
+      try {
+        const constraints = {
+          video: this.selectedDeviceId
+            ? { deviceId: { ideal: this.selectedDeviceId } }
+            : true
+        };
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+      } catch (err1) {
+        if (err1.name === 'NotAllowedError' || err1.name === 'PermissionDeniedError') {
+          throw new Error('Permission denied: Enable camera in Windows Settings.');
+        } else if (err1.name === 'NotReadableError' || err1.name === 'TrackStartError') {
+          throw new Error('Camera in use by another app (Zoom, Teams, OBS).');
+        } else if (err1.name === 'NotFoundError' || err1.name === 'DevicesNotFoundError') {
+          throw new Error('No physical webcam hardware detected.');
+        }
+        // Try basic video fallback
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      if (!stream) {
+        throw new Error('No stream returned');
+      }
+
       this.currentStream = stream;
       targetVideo.srcObject = stream;
+      targetVideo.muted = true;
+      targetVideo.autoplay = true;
+      targetVideo.playsInline = true;
+
+      // Ensure playback starts reliably across all Chromium/Electron environments
       await new Promise((resolve) => {
-        targetVideo.onloadedmetadata = () => {
-          targetVideo.play();
-          resolve();
+        let isDone = false;
+        const complete = () => {
+          if (!isDone) {
+            isDone = true;
+            resolve();
+          }
         };
+
+        targetVideo.onloadeddata = complete;
+        targetVideo.onloadedmetadata = complete;
+        targetVideo.onplay = complete;
+
+        const playPromise = targetVideo.play();
+        if (playPromise && playPromise.then) {
+          playPromise.then(complete).catch((e) => {
+            console.warn('targetVideo.play() warning:', e);
+            complete();
+          });
+        }
+
+        setTimeout(complete, 1000);
       });
+
       this.video = targetVideo;
       this.isCameraRunning = true;
       this.useSynthetic = false;
       return true;
     } catch (err) {
-      console.warn('Webcam unavailable or permission denied, using synthetic tracking generator:', err.message);
+      console.warn('Webcam unavailable:', err.message);
+      this.lastError = err.message;
       this.useSynthetic = true;
       return false;
     }

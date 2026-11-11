@@ -141,6 +141,16 @@ header {
   background: #1d4ed8;
 }
 
+.btn-success {
+  background: #059669;
+  border-color: #10b981;
+  color: #ffffff;
+}
+
+.btn-success:hover {
+  background: #047857;
+}
+
 /* Main Layout */
 main {
   display: flex;

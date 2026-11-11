@@ -1,4 +1,4 @@
-const { app, BrowserWindow, screen, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, screen, ipcMain, dialog, session } = require('electron');
 const path = require('path');
 const fs = require('fs');
 
@@ -22,6 +22,8 @@ app.commandLine.appendSwitch('ignore-gpu-blocklist');
 app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-webgl');
 app.commandLine.appendSwitch('disable-http-cache');
+app.commandLine.appendSwitch('use-fake-ui-for-media-stream');
+app.commandLine.appendSwitch('enable-features', 'MediaStreamTrack');
 
 let consoleWindow = null;
 let projectorWindow = null;
@@ -129,6 +131,17 @@ ipcMain.on('open-projector', () => {
 });
 
 app.whenReady().then(() => {
+  // Unconditionally grant media/camera permissions for local and file origins in Electron
+  if (session && session.defaultSession) {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      callback(true);
+    });
+
+    session.defaultSession.setPermissionCheckHandler((webContents, permission, requestingOrigin) => {
+      return true;
+    });
+  }
+
   createConsoleWindow();
 
   app.on('activate', () => {

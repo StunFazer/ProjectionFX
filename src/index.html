@@ -130,19 +130,20 @@
         <div id="tab-vision" class="tab-pane">
           <div class="card">
             <span class="card-title">Webcam Stream & Skeleton</span>
-            <div class="camera-preview-box">
-              <video id="webcam-feed" playsinline></video>
-              <canvas id="landmark-canvas"></canvas>
+            <div class="camera-preview-box" title="Click to Connect Webcam">
+              <video id="webcam-feed" autoplay playsinline muted></video>
+              <canvas id="landmark-canvas" style="pointer-events: none;"></canvas>
             </div>
             <div class="control-row" style="margin-top: 4px;">
               <div class="control-label-row">
                 <span class="control-label">Camera Source</span>
+                <span id="val-camera-status" class="control-val">Standby</span>
               </div>
               <select id="camera-select" class="control-select">
                 <option value="">Detecting cameras...</option>
               </select>
             </div>
-            <button id="btn-toggle-camera" class="btn btn-primary" style="margin-top: 6px;">Start Webcam (1080p60)</button>
+            <button id="btn-toggle-camera" class="btn btn-primary" style="margin-top: 6px;">Start Webcam Stream</button>
           </div>
 
           <div class="card">
@@ -165,11 +166,11 @@
         <!-- Tab 3: Dynamic Performer -->
         <div id="tab-performer" class="tab-pane">
           <div class="card">
-            <span class="card-title">Dynamic Performer Mode</span>
-            <p style="color: var(--text-muted); font-size: 11px;">
-              Binds procedural Gaussian splats and volumetric auras directly to the performer's body skeleton and silhouette.
+            <span class="card-title">Dynamic Performer Avatar</span>
+            <p style="color: var(--text-muted); font-size: 11px; line-height: 1.5;">
+              Generates a full 3D humanoid avatar (head, torso, limbs, energy aura) out of 60,000 real-time Gaussian Splats for live performer stage mapping.
             </p>
-            <button id="btn-activate-performer-preset" class="btn btn-primary">Load Performer Avatar Splats</button>
+            <button id="btn-activate-performer-preset" class="btn btn-primary">Generate Humanoid Avatar Splats</button>
           </div>
 
           <div class="card">
