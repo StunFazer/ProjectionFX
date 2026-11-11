@@ -29,10 +29,13 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "package.json"
     ],
+    "asar": false,
     "win": {
       "target": [
+        "zip",
         "portable",
         "nsis"
       ]

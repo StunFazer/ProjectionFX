@@ -176,7 +176,16 @@ function setupUI() {
 
   // Projector Window Launcher
   document.getElementById('btn-open-projector')?.addEventListener('click', () => {
-    window.open(`${window.location.origin}${window.location.pathname}?mode=projector`, 'ProjectorOutput', 'width=1920,height=1080');
+    try {
+      if (window.require) {
+        const { ipcRenderer } = window.require('electron');
+        if (ipcRenderer) {
+          ipcRenderer.send('open-projector');
+          return;
+        }
+      }
+    } catch (_) {}
+    window.open(`${window.location.href.split('?')[0]}?mode=projector`, 'ProjectorOutput', 'width=1920,height=1080');
   });
 
   // Populate Calibration Table
