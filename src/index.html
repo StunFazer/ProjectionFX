@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProjectionFX - Real-Time 3DGS & Interactive Mapping</title>
+  <link rel="stylesheet" href="./ui/style.css">
+</head>
+<body>
+  <div id="app-container">
+    <!-- Top Header -->
+    <header>
+      <div class="brand">
+        <span class="brand-title">ProjectionFX</span>
+        <span class="brand-badge">WebGPU / 3DGS</span>
+      </div>
+
+      <div class="mode-selector">
+        <button id="btn-mode-object" class="mode-btn active">Static 3D Object</button>
+        <button id="btn-mode-performer" class="mode-btn">Dynamic Performer</button>
+      </div>
+
+      <div class="header-actions">
+        <button id="btn-load-ply" class="btn">📂 Load .PLY</button>
+        <button id="btn-open-projector" class="btn btn-primary">📽️ Launch Projector Window</button>
+        <input type="file" id="ply-file-input" accept=".ply,.splat" style="display: none;">
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main>
+      <!-- 3D Interactive Viewport -->
+      <div id="viewport-container">
+        <canvas id="viewport-canvas"></canvas>
+
+        <div class="hud-overlay">
+          <div class="hud-pill">
+            <span class="hud-dot"></span>
+            <span id="hud-status">GPU Pipeline Ready • 60 FPS</span>
+          </div>
+          <div class="hud-pill">
+            <span>Tracking:</span>
+            <span id="hud-tracking" style="color: var(--accent-cyan);">Active</span>
+          </div>
+          <div class="hud-pill">
+            <span>Reprojection RMS:</span>
+            <span id="hud-rms" style="color: var(--accent-emerald);">&lt; 0.001 px</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Operator Sidebar -->
+      <aside id="sidebar-container">
+        <nav class="tabs-nav">
+          <button class="tab-btn active" data-tab="tab-effects">Effects</button>
+          <button class="tab-btn" data-tab="tab-vision">Vision</button>
+          <button class="tab-btn" data-tab="tab-calib">Calibration</button>
+          <button class="tab-btn" data-tab="tab-keystone">Keystone</button>
+        </nav>
+
+        <!-- Tab 1: Effects & Splats -->
+        <div id="tab-effects" class="tab-pane active">
+          <div class="card">
+            <span class="card-title">Splat Cloud</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Preset</span>
+                <span id="val-preset" class="control-val">Sculpture Torus</span>
+              </div>
+              <button id="btn-reset-demo" class="btn">Reload Demo Cloud (60k)</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Curl Turbulence Field</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Strength</span>
+                <span id="val-turb-strength" class="control-val">0.08</span>
+              </div>
+              <input type="range" id="slider-turb-strength" min="0" max="0.3" step="0.01" value="0.08">
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Speed</span>
+                <span id="val-turb-speed" class="control-val">0.50</span>
+              </div>
+              <input type="range" id="slider-turb-speed" min="0" max="2.0" step="0.05" value="0.5">
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Touchless Hand Dispersion</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Push Force</span>
+                <span id="val-hand-push" class="control-val">0.40</span>
+              </div>
+              <input type="range" id="slider-hand-push" min="0" max="1.0" step="0.05" value="0.4">
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Repulsion Radius</span>
+                <span id="val-hand-radius" class="control-val">0.35m</span>
+              </div>
+              <input type="range" id="slider-hand-radius" min="0.1" max="0.8" step="0.05" value="0.35">
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Volumetric Dissolve</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Reveal Radius</span>
+                <span id="val-dissolve" class="control-val">2.50m</span>
+              </div>
+              <input type="range" id="slider-dissolve" min="0.0" max="3.0" step="0.05" value="2.5">
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Vision & Tracking -->
+        <div id="tab-vision" class="tab-pane">
+          <div class="card">
+            <span class="card-title">Webcam Stream & Skeleton</span>
+            <div class="camera-preview-box">
+              <video id="webcam-feed" playsinline></video>
+              <canvas id="landmark-canvas"></canvas>
+            </div>
+            <button id="btn-toggle-camera" class="btn">Start Webcam (1080p60)</button>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Tracked Entities</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Left Hand</span>
+                <span id="val-left-hand" class="control-val">Searching...</span>
+              </div>
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Right Hand</span>
+                <span id="val-right-hand" class="control-val">Searching...</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: 3D Calibration Wizard -->
+        <div id="tab-calib" class="tab-pane">
+          <div class="card">
+            <span class="card-title">6-Point 3D PnP Alignment</span>
+            <p style="color: var(--text-muted); font-size: 11px;">
+              Aligns physical object geometry to the projector viewport via normalized DLT and RQ decomposition.
+            </p>
+            <table class="calib-table">
+              <thead>
+                <tr><th>Pt</th><th>3D World [X,Y,Z]</th><th>Projector Screen [u,v]</th></tr>
+              </thead>
+              <tbody id="calib-table-body"></tbody>
+            </table>
+            <button id="btn-solve-calib" class="btn btn-primary">Solve PnP Matrix</button>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Calibration Diagnostics</span>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">RMS Error</span>
+                <span id="val-calib-rms" class="control-val">0.000 px</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Projector Position</span>
+                <span id="val-proj-pos" class="control-val">[0.0, 1.2, -2.5]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Keystone Warping -->
+        <div id="tab-keystone" class="tab-pane">
+          <div class="card">
+            <span class="card-title">4-Corner Keystone Warper</span>
+            <p style="color: var(--text-muted); font-size: 11px;">
+              Corner-pin keystone correction for non-perpendicular projector angles.
+            </p>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Top-Left</span>
+                <span id="val-pin-tl" class="control-val">[0, 0]</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Top-Right</span>
+                <span id="val-pin-tr" class="control-val">[1920, 0]</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Bottom-Right</span>
+                <span id="val-pin-br" class="control-val">[1920, 1080]</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Bottom-Left</span>
+                <span id="val-pin-bl" class="control-val">[0, 1080]</span>
+              </div>
+            </div>
+            <button id="btn-reset-keystone" class="btn">Reset to Rectangular</button>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Footer Status Bar -->
+    <footer>
+      <div class="footer-left">
+        <span id="stat-fps">FPS: 60.0</span>
+        <span id="stat-splats">Splats: 60,000</span>
+        <span id="stat-mode">Mode: Static 3D Object</span>
+      </div>
+      <div class="footer-right">
+        <span>Dual-Display Sync: <span style="color: var(--accent-emerald);">Ready</span></span>
+        <span>Version 1.0.0</span>
+      </div>
+    </footer>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
