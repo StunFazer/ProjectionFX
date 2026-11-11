@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "node tests/test_math.js",
     "electron:dev": "electron .",
-    "build:win": "vite build && electron-builder --win --x64 -c.publish=never"
+    "build:win": "vite build && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "three": "^0.170.0",
