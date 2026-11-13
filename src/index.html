@@ -3,273 +3,289 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ProjectionFX - Real-Time 3DGS & Interactive Mapping</title>
+  <title>ProjectionFX - Live Stage Projection Mapping</title>
   <link rel="stylesheet" href="./ui/style.css">
 </head>
 <body>
   <div id="app-container">
-    <!-- Top Header -->
+    <!-- Top Performance Header -->
     <header>
       <div class="brand">
         <span class="brand-title">ProjectionFX</span>
-        <span class="brand-badge">WebGPU / 3DGS</span>
+        <span class="brand-badge">STAGE MAPPER</span>
       </div>
 
-      <div class="mode-selector">
-        <button id="btn-mode-object" class="mode-btn active">Static 3D Object</button>
-        <button id="btn-mode-performer" class="mode-btn">Dynamic Performer</button>
+      <div class="scene-strip" title="Quick Scene Switcher (Hotkeys 1–6)">
+        <button class="scene-pill active" data-scene="laser-skeleton"><span class="hk">1</span> Skeleton</button>
+        <button class="scene-pill" data-scene="silk-ribbons"><span class="hk">2</span> Ribbons</button>
+        <button class="scene-pill" data-scene="cyber-webbing"><span class="hk">3</span> Webbing</button>
+        <button class="scene-pill" data-scene="aura-halo"><span class="hk">4</span> Aura Halo</button>
+        <button class="scene-pill" data-scene="supernova"><span class="hk">5</span> Supernova</button>
+        <button class="scene-pill" data-scene="motion-echo"><span class="hk">6</span> Echo Duet</button>
       </div>
 
       <div class="header-actions">
-        <button id="btn-load-ply" class="btn">📂 Load .PLY</button>
-        <button id="btn-open-projector" class="btn btn-primary">📽️ Launch Projector Window</button>
-        <input type="file" id="ply-file-input" accept=".ply,.splat" style="display: none;">
+        <button id="btn-hdr-mask" class="btn" title="Toggle Body-Locked Stencil Mask [M]">Mask: Immersion</button>
+        <button id="btn-hdr-calib" class="btn" title="Toggle Live Calibration Grid & Pins [C]">Calib [C]</button>
+        <button id="btn-hdr-blackout" class="btn btn-danger-outline" title="Instant Stage Blackout [Space]">Blackout</button>
+        <button id="btn-hdr-rehearsal" class="btn" title="Single-Screen Rehearsal Fullscreen [P]">Rehearsal [P]</button>
+        <button id="btn-open-projector" class="btn btn-primary">📽️ Projector Display</button>
       </div>
     </header>
 
     <!-- Main Workspace -->
     <main>
-      <!-- 3D Interactive Viewport -->
-      <div id="viewport-container">
-        <canvas id="viewport-canvas"></canvas>
+      <!-- Hidden webcam source element -->
+      <video id="webcam-feed" autoplay playsinline muted style="display:none;"></video>
 
+      <!-- Live Stage Monitor / Projector Output -->
+      <div id="viewport-container">
+        <canvas id="stage-canvas"></canvas>
+
+        <!-- Interactive 4-Corner Calibration Overlay (Console Mode Only) -->
+        <svg id="calib-overlay" viewBox="0 0 100 100" preserveAspectRatio="none" style="display: none;">
+          <polygon id="calib-quad-poly" points="0,0 100,0 100,100 0,100" fill="rgba(0, 240, 255, 0.08)" stroke="#00f0ff" stroke-width="0.35" stroke-dasharray="1.2,0.8" />
+          <line id="calib-diag-1" x1="0" y1="0" x2="100" y2="100" stroke="rgba(0, 240, 255, 0.35)" stroke-width="0.2" />
+          <line id="calib-diag-2" x1="100" y1="0" x2="0" y2="100" stroke="rgba(0, 240, 255, 0.35)" stroke-width="0.2" />
+        </svg>
+        <div id="calib-handles-layer" style="display: none;">
+          <div class="calib-handle" data-corner="0" title="Top-Left Projector Corner"><span>TL</span></div>
+          <div class="calib-handle" data-corner="1" title="Top-Right Projector Corner"><span>TR</span></div>
+          <div class="calib-handle" data-corner="2" title="Bottom-Right Projector Corner"><span>BR</span></div>
+          <div class="calib-handle" data-corner="3" title="Bottom-Left Projector Corner"><span>BL</span></div>
+        </div>
+
+        <!-- Stage Blackout Banner (Console Monitor Only) -->
+        <div id="blackout-banner" class="blackout-banner" style="display: none;">
+          STAGE BLACKOUT ACTIVE • PRESS [SPACE] TO RESTORE
+        </div>
+
+        <!-- Rehearsal Mode Hint -->
+        <div id="rehearsal-hint" class="rehearsal-hint" style="display: none;">
+          Rehearsal Mode • Press <b>P</b> or <b>Esc</b> to exit
+        </div>
+
+        <!-- Compact Console Telemetry Overlay -->
         <div class="hud-overlay">
           <div class="hud-pill">
-            <span class="hud-dot"></span>
-            <span id="hud-status">GPU Pipeline Ready • 60 FPS</span>
+            <span id="hud-dot" class="hud-dot"></span>
+            <span id="hud-fps">60 FPS</span>
           </div>
           <div class="hud-pill">
-            <span>Tracking:</span>
-            <span id="hud-tracking" style="color: var(--accent-cyan);">Active</span>
+            <span>Vision:</span>
+            <span id="hud-vision" style="color: var(--accent-cyan);">Synthetic Dancer</span>
           </div>
           <div class="hud-pill">
-            <span>Reprojection RMS:</span>
-            <span id="hud-rms" style="color: var(--accent-emerald);">&lt; 0.001 px</span>
+            <span>Boundary:</span>
+            <span id="hud-boundary" style="color: var(--accent-emerald);">Stage Immersion</span>
           </div>
         </div>
       </div>
 
-      <!-- Operator Sidebar -->
+      <!-- Operator Control Sidebar -->
       <aside id="sidebar-container">
         <nav class="tabs-nav">
-          <button class="tab-btn active" data-tab="tab-effects">Effects</button>
+          <button class="tab-btn active" data-tab="tab-scenes">Scenes</button>
           <button class="tab-btn" data-tab="tab-vision">Vision</button>
-          <button class="tab-btn" data-tab="tab-performer">Performer</button>
-          <button class="tab-btn" data-tab="tab-calib">Calibration</button>
-          <button class="tab-btn" data-tab="tab-keystone">Keystone</button>
+          <button class="tab-btn" data-tab="tab-calib">Calibrate</button>
+          <button class="tab-btn" data-tab="tab-output">Output</button>
         </nav>
 
-        <!-- Tab 1: Effects & Splats -->
-        <div id="tab-effects" class="tab-pane active">
+        <!-- TAB 1: SCENES & THEMES -->
+        <div id="tab-scenes" class="tab-pane active">
           <div class="card">
-            <span class="card-title">Splat Cloud Preset</span>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Select 3DGS Preset</span>
-              </div>
-              <select id="preset-select" class="control-select">
-                <option value="sculpture" selected>🌀 Moebius Sculpture Torus (60k)</option>
-                <option value="performer">🕺 Dynamic Performer Rig (60k)</option>
-                <option value="galaxy">🌌 Spiral Galaxy Nebula (60k)</option>
-                <option value="vortex">🌪️ Hydrodynamic Vortex (60k)</option>
-                <option value="crystal">💎 Octahedral Crystal Lattice (60k)</option>
-              </select>
-              <button id="btn-reset-demo" class="btn" style="margin-top: 4px;">Reload Selected Preset</button>
+            <span class="card-title">Stage Visual Scenes (Keys 1–6)</span>
+            <div id="scene-cards-list" class="scene-cards-grid"></div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Color Theme [Key: T]</span>
+            <div class="theme-grid">
+              <button class="theme-btn active" data-theme="laser-cyan">
+                <span class="swatch" style="background: linear-gradient(135deg, #00f0ff, #3b82f6);"></span>
+                Laser Cyan
+              </button>
+              <button class="theme-btn" data-theme="neon-cyberpunk">
+                <span class="swatch" style="background: linear-gradient(135deg, #ff2a85, #9d4edd);"></span>
+                Cyberpunk
+              </button>
+              <button class="theme-btn" data-theme="ethereal-spirit">
+                <span class="swatch" style="background: linear-gradient(135deg, #10b981, #06b6d4);"></span>
+                Ethereal
+              </button>
+              <button class="theme-btn" data-theme="golden-fire">
+                <span class="swatch" style="background: linear-gradient(135deg, #f59e0b, #ef4444);"></span>
+                Golden Fire
+              </button>
             </div>
           </div>
 
           <div class="card">
-            <span class="card-title">Curl Turbulence Field</span>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Strength</span>
-                <span id="val-turb-strength" class="control-val">0.08</span>
-              </div>
-              <input type="range" id="slider-turb-strength" min="0" max="0.3" step="0.01" value="0.08">
+            <span class="card-title">Projection Boundary [Key: M]</span>
+            <div class="segmented-control">
+              <button id="btn-mode-immersion" class="seg-btn active">Stage Immersion</button>
+              <button id="btn-mode-bodylocked" class="seg-btn">Body-Locked Mask</button>
             </div>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Speed</span>
-                <span id="val-turb-speed" class="control-val">0.50</span>
-              </div>
-              <input type="range" id="slider-turb-speed" min="0" max="2.0" step="0.05" value="0.5">
-            </div>
+            <p class="hint-text">
+              <b>Body-Locked</b> clips light strictly to your physical body silhouette. <b>Stage Immersion</b> lets ribbons & bursts spill onto the stage wall.
+            </p>
           </div>
 
           <div class="card">
-            <span class="card-title">Touchless Hand Dispersion</span>
+            <span class="card-title">Effect Parameters</span>
             <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Push Force</span>
-                <span id="val-hand-push" class="control-val">0.40</span>
+                <span class="control-label">Glow &amp; Bloom</span>
+                <span id="val-glow" class="control-val">1.00</span>
               </div>
-              <input type="range" id="slider-hand-push" min="0" max="1.0" step="0.05" value="0.4">
+              <input type="range" id="slider-glow" min="0.2" max="2.0" step="0.05" value="1.0">
             </div>
             <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Repulsion Radius</span>
-                <span id="val-hand-radius" class="control-val">0.35m</span>
+                <span class="control-label">Line Weight</span>
+                <span id="val-weight" class="control-val">1.00</span>
               </div>
-              <input type="range" id="slider-hand-radius" min="0.1" max="0.8" step="0.05" value="0.35">
+              <input type="range" id="slider-weight" min="0.4" max="2.5" step="0.05" value="1.0">
             </div>
-          </div>
-
-          <div class="card">
-            <span class="card-title">Volumetric Dissolve</span>
             <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Reveal Radius</span>
-                <span id="val-dissolve" class="control-val">2.50m</span>
+                <span class="control-label">Ribbon Trail Length</span>
+                <span id="val-ribbon" class="control-val">0.70</span>
               </div>
-              <input type="range" id="slider-dissolve" min="0.0" max="3.0" step="0.05" value="2.5">
+              <input type="range" id="slider-ribbon" min="0.1" max="1.0" step="0.05" value="0.7">
+            </div>
+            <div class="control-row">
+              <div class="control-label-row">
+                <span class="control-label">Velocity Burst Sensitivity</span>
+                <span id="val-burst" class="control-val">1.00</span>
+              </div>
+              <input type="range" id="slider-burst" min="0.0" max="2.5" step="0.05" value="1.0">
             </div>
           </div>
         </div>
 
-        <!-- Tab 2: Vision & Tracking -->
+        <!-- TAB 2: CAMERA & AI VISION -->
         <div id="tab-vision" class="tab-pane">
           <div class="card">
-            <span class="card-title">Webcam Stream & Skeleton</span>
-            <div class="camera-preview-box" title="Click to Connect Webcam">
-              <video id="webcam-feed" autoplay playsinline muted></video>
-              <canvas id="landmark-canvas" style="pointer-events: none;"></canvas>
-            </div>
-            <div class="control-row" style="margin-top: 4px;">
+            <span class="card-title">Camera Hardware Input</span>
+            <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Camera Source</span>
-                <span id="val-camera-status" class="control-val">Standby</span>
+                <span class="control-label">Source Device</span>
+                <span id="val-camera-status" class="control-val">Synthetic Mode</span>
               </div>
               <select id="camera-select" class="control-select">
-                <option value="">Detecting cameras...</option>
+                <option value="synthetic">Synthetic Dancer (Rehearsal)</option>
               </select>
             </div>
-            <button id="btn-toggle-camera" class="btn btn-primary" style="margin-top: 6px;">Start Webcam Stream</button>
+            <div class="btn-row">
+              <button id="btn-toggle-camera" class="btn btn-primary" style="flex:1;">Connect Webcam</button>
+              <button id="btn-use-synthetic" class="btn" title="Switch back to built-in articulated dancer simulator">Synthetic</button>
+            </div>
+            <div class="control-row" style="margin-top: 4px;">
+              <label class="checkbox-row">
+                <input type="checkbox" id="chk-mirror-cam" checked>
+                <span>Mirror Camera Horizontal (Laptop Facing)</span>
+              </label>
+              <p class="hint-text">Uncheck if your camera is mounted alongside the projector pointing at the stage.</p>
+            </div>
           </div>
 
           <div class="card">
-            <span class="card-title">Tracked Entities</span>
+            <span class="card-title">Operator Console Monitor</span>
             <div class="control-row">
               <div class="control-label-row">
-                <span class="control-label">Left Hand</span>
-                <span id="val-left-hand" class="control-val">Searching...</span>
+                <span class="control-label">Camera Underlay Opacity</span>
+                <span id="val-underlay-opacity" class="control-val">35%</span>
+              </div>
+              <input type="range" id="slider-underlay-opacity" min="0" max="1.0" step="0.05" value="0.35">
+            </div>
+            <p class="hint-text">Visible in Operator Console only. Stage Projector output always stays pure #000000 black.</p>
+          </div>
+
+          <div class="card">
+            <span class="card-title">AI Pose &amp; Silhouette Diagnostics</span>
+            <div class="stat-grid">
+              <div class="control-label-row">
+                <span class="control-label">MediaPipe Engine</span>
+                <span id="val-mp-status" class="control-val">Ready</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Detected Joints</span>
+                <span id="val-joints-count" class="control-val">33 / 33</span>
+              </div>
+              <div class="control-label-row">
+                <span class="control-label">Silhouette Stencil</span>
+                <span id="val-seg-status" class="control-val">Active (160x90)</span>
               </div>
             </div>
-            <div class="control-row">
+            <div class="control-row" style="margin-top: 6px;">
               <div class="control-label-row">
-                <span class="control-label">Right Hand</span>
-                <span id="val-right-hand" class="control-val">Searching...</span>
+                <span class="control-label">Motion Smoothing (1€ Filter)</span>
+                <span id="val-smoothing" class="control-val">Balanced</span>
               </div>
+              <input type="range" id="slider-smoothing" min="0" max="1" step="0.05" value="0.45">
             </div>
           </div>
         </div>
 
-        <!-- Tab 3: Dynamic Performer -->
-        <div id="tab-performer" class="tab-pane">
-          <div class="card">
-            <span class="card-title">Dynamic Performer Avatar</span>
-            <p style="color: var(--text-muted); font-size: 11px; line-height: 1.5;">
-              Generates a full 3D humanoid avatar (head, torso, limbs, energy aura) out of 60,000 real-time Gaussian Splats for live performer stage mapping.
-            </p>
-            <button id="btn-activate-performer-preset" class="btn btn-primary">Generate Humanoid Avatar Splats</button>
-          </div>
-
-          <div class="card">
-            <span class="card-title">Performer Silhouette & Stencil</span>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Silhouette Mask Stencil</span>
-                <span id="val-mask-state" class="control-val">Off</span>
-              </div>
-              <button id="btn-toggle-mask" class="btn">Toggle Stencil Mask</button>
-            </div>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Aura Halo Expansion</span>
-                <span id="val-performer-aura" class="control-val">1.25m</span>
-              </div>
-              <input type="range" id="slider-performer-aura" min="0.5" max="3.0" step="0.05" value="1.25">
-            </div>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Splat Motion Binding</span>
-                <span id="val-performer-bind" class="control-val">0.85</span>
-              </div>
-              <input type="range" id="slider-performer-bind" min="0.0" max="1.0" step="0.05" value="0.85">
-            </div>
-          </div>
-
-          <div class="card">
-            <span class="card-title">Performer Telemetry</span>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Performer Stencil Res</span>
-                <span class="control-val">640 &times; 360</span>
-              </div>
-              <div class="control-label-row">
-                <span class="control-label">Rig Splats</span>
-                <span class="control-val">60,000 Particles</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tab 3: 3D Calibration Wizard -->
+        <!-- TAB 3: LIVE MIRROR CALIBRATION -->
         <div id="tab-calib" class="tab-pane">
           <div class="card">
-            <span class="card-title">6-Point 3D PnP Alignment</span>
-            <p style="color: var(--text-muted); font-size: 11px;">
-              Aligns physical object geometry to the projector viewport via normalized DLT and RQ decomposition.
+            <span class="card-title">4-Corner Stage Alignment [Key: C]</span>
+            <p class="hint-text">
+              Drag the <b>TL, TR, BR, BL</b> corner pins over the camera monitor to match where the projector beam hits your stage wall—or use Auto-Align.
             </p>
-            <table class="calib-table">
-              <thead>
-                <tr><th>Pt</th><th>3D World [X,Y,Z]</th><th>Projector Screen [u,v]</th></tr>
-              </thead>
-              <tbody id="calib-table-body"></tbody>
-            </table>
-            <button id="btn-solve-calib" class="btn btn-primary">Solve PnP Matrix</button>
+            <button id="btn-toggle-calib-grid" class="btn btn-primary">Show Calibration Grid &amp; Pins [C]</button>
+            <button id="btn-auto-align" class="btn">⚡ Auto-Align Projector to Camera</button>
+            <div id="auto-align-status" class="hint-text" style="color: var(--accent-cyan); min-height: 16px;"></div>
+            <button id="btn-reset-calib" class="btn">Reset Corners to Full Frame</button>
           </div>
 
           <div class="card">
-            <span class="card-title">Calibration Diagnostics</span>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">RMS Error</span>
-                <span id="val-calib-rms" class="control-val">0.000 px</span>
-              </div>
-              <div class="control-label-row">
-                <span class="control-label">Projector Position</span>
-                <span id="val-proj-pos" class="control-val">[0.0, 1.2, -2.5]</span>
-              </div>
+            <span class="card-title">Active Homography Quad</span>
+            <div class="stat-grid" id="calib-coords-readout">
+              <div class="control-label-row"><span class="control-label">Top-Left (TL)</span><span id="coord-tl" class="control-val">[0.0%, 0.0%]</span></div>
+              <div class="control-label-row"><span class="control-label">Top-Right (TR)</span><span id="coord-tr" class="control-val">[100.0%, 0.0%]</span></div>
+              <div class="control-label-row"><span class="control-label">Bottom-Right (BR)</span><span id="coord-br" class="control-val">[100.0%, 100.0%]</span></div>
+              <div class="control-label-row"><span class="control-label">Bottom-Left (BL)</span><span id="coord-bl" class="control-val">[0.0%, 100.0%]</span></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Venue Calibration Profiles</span>
+            <div class="btn-row">
+              <input type="text" id="input-venue-name" class="control-input" placeholder="e.g. Main Stage / Studio A">
+              <button id="btn-save-venue" class="btn btn-primary">Save</button>
+            </div>
+            <div class="btn-row" style="margin-top: 4px;">
+              <select id="select-venue-profile" class="control-select" style="flex:1;">
+                <option value="">-- Saved Venues --</option>
+              </select>
+              <button id="btn-load-venue" class="btn">Load</button>
+              <button id="btn-del-venue" class="btn">Del</button>
             </div>
           </div>
         </div>
 
-        <!-- Tab 4: Keystone Warping -->
-        <div id="tab-keystone" class="tab-pane">
+        <!-- TAB 4: OUTPUT & HOTKEYS -->
+        <div id="tab-output" class="tab-pane">
           <div class="card">
-            <span class="card-title">4-Corner Keystone Warper</span>
-            <p style="color: var(--text-muted); font-size: 11px;">
-              Corner-pin keystone correction for non-perpendicular projector angles.
-            </p>
-            <div class="control-row">
-              <div class="control-label-row">
-                <span class="control-label">Top-Left</span>
-                <span id="val-pin-tl" class="control-val">[0, 0]</span>
-              </div>
-              <div class="control-label-row">
-                <span class="control-label">Top-Right</span>
-                <span id="val-pin-tr" class="control-val">[1920, 0]</span>
-              </div>
-              <div class="control-label-row">
-                <span class="control-label">Bottom-Right</span>
-                <span id="val-pin-br" class="control-val">[1920, 1080]</span>
-              </div>
-              <div class="control-label-row">
-                <span class="control-label">Bottom-Left</span>
-                <span id="val-pin-bl" class="control-val">[0, 1080]</span>
-              </div>
+            <span class="card-title">Stage Displays</span>
+            <button id="btn-out-projector" class="btn btn-primary">📽️ Launch Fullscreen Projector (Display 2)</button>
+            <button id="btn-out-rehearsal" class="btn">🖥️ Single-Screen Rehearsal Fullscreen [P]</button>
+            <button id="btn-out-blackout" class="btn btn-danger-outline">⬛ Instant Stage Blackout [Space]</button>
+          </div>
+
+          <div class="card">
+            <span class="card-title">Performance Hotkeys</span>
+            <div class="hotkey-list">
+              <div class="hotkey-row"><kbd>1</kbd>–<kbd>6</kbd><span>Switch Stage Scene Preset</span></div>
+              <div class="hotkey-row"><kbd>Space</kbd><span>Instant Stage Blackout</span></div>
+              <div class="hotkey-row"><kbd>M</kbd><span>Toggle Body-Locked Mask / Immersion</span></div>
+              <div class="hotkey-row"><kbd>T</kbd><span>Cycle Color Theme</span></div>
+              <div class="hotkey-row"><kbd>C</kbd><span>Toggle Calibration Grid &amp; Pins</span></div>
+              <div class="hotkey-row"><kbd>P</kbd><span>Single-Screen Rehearsal Fullscreen</span></div>
             </div>
-            <button id="btn-reset-keystone" class="btn">Reset to Rectangular</button>
           </div>
         </div>
       </aside>
@@ -279,12 +295,12 @@
     <footer>
       <div class="footer-left">
         <span id="stat-fps">FPS: 60.0</span>
-        <span id="stat-splats">Splats: 60,000</span>
-        <span id="stat-mode">Mode: Static 3D Object</span>
+        <span id="stat-scene">Scene: Cyber Laser Skeleton</span>
+        <span id="stat-theme">Theme: Laser White &amp; Cyan</span>
       </div>
       <div class="footer-right">
-        <span>Dual-Display Sync: <span style="color: var(--accent-emerald);">Ready</span></span>
-        <span>Version 1.0.0</span>
+        <span>Projector Sync: <span id="stat-sync" style="color: var(--accent-emerald);">Broadcast Ready</span></span>
+        <span>ProjectionFX v2.0 Stage</span>
       </div>
     </footer>
   </div>

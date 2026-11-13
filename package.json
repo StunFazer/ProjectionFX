@@ -1,7 +1,7 @@
 {
   "name": "projectionfx",
-  "version": "1.0.0",
-  "description": "Interactive Real-Time Projection Mapping with 3D Gaussian Splatting & MediaPipe Vision",
+  "version": "2.0.0",
+  "description": "Live Stage Performer Projection Mapping Studio with AI Pose & Silhouette Masking",
   "main": "electron/main.cjs",
   "type": "module",
   "scripts": {
